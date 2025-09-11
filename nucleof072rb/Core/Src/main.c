@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,7 +62,9 @@ static uint8_t spi_tx_buf_[3] = { 0, 0, 0 };
 
 // should be in ms?
 static const uint32_t SPI_TIMEOUT = 100;
+static const uint32_t UART_TIMEOUT = 100;
 static const uint16_t MAX_ADC_READING = (1 << 11) - 1;
+static uint8_t MSG[30];
 
 /* USER CODE END 0 */
 
@@ -102,6 +104,7 @@ int main(void)
   // enable pwm output signal
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -118,16 +121,21 @@ int main(void)
 	  // third tx byte only as dummy to allow for receive
 	  spi_tx_buf_[2] = 0;
 
-	  // set chip select high
-	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-	  // do actual spi transmit + receive
-	  HAL_SPI_TransmitReceive(&hspi1, &spi_tx_buf_[0], &spi_rx_buf_[0], 2, SPI_TIMEOUT);
-	  // reset chip select to low
+	  // set chip select low for communication
 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+	  // do actual spi transmit + receive
+	  HAL_StatusTypeDef status = HAL_SPI_TransmitReceive(&hspi1, spi_tx_buf_, spi_rx_buf_, 3, SPI_TIMEOUT);
+	  // reset chip select to high
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
 
-	  uint16_t reading = (((uint16_t)(spi_rx_buf_[1] & 0x03)) << 8) + spi_rx_buf_[2];
+	  if (status != HAL_OK) {
+		  sprintf((char*)MSG, "Uart not ok, status: %d\n\r", status);
+		  HAL_UART_Transmit(&huart2, MSG, sizeof(MSG), UART_TIMEOUT);
+	  }
+
+	  uint16_t adc_reading = (((uint16_t)(spi_rx_buf_[1] & 0x03)) << 8) + spi_rx_buf_[2];
 	  // adjust counter compare register
-	  TIM1->CCR1 = reading * TIM1->ARR / MAX_ADC_READING * 0.05 + TIM1->ARR * 0.05;
+	  TIM1->CCR1 = adc_reading * TIM1->ARR / MAX_ADC_READING * 0.05 + TIM1->ARR * 0.05;
 
 	  HAL_Delay(10);
   }
