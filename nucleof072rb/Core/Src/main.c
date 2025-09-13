@@ -58,7 +58,10 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 static uint8_t spi_rx_buf_[3] = { 0, 0, 0 };
-static uint8_t spi_tx_buf_[3] = { 0, 0, 0 };
+// seven leading zeros in first byte to transmit
+// single ended read from channel 0
+// third tx byte only as dummy to allow for receive
+static uint8_t spi_tx_buf_[3] = { 1, 1 << 7, 0 };
 
 // should be in ms?
 static const uint32_t SPI_TIMEOUT = 100;
@@ -104,7 +107,7 @@ int main(void)
   // enable pwm output signal
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-
+  uint16_t adc_reading;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,12 +117,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // seven leading zeros in first byte to transmit
-	  spi_tx_buf_[0] = 0x01;
-	  // single ended read from channel 0
-	  spi_tx_buf_[1] = 1 << 7;
-	  // third tx byte only as dummy to allow for receive
-	  spi_tx_buf_[2] = 0;
 
 	  // set chip select low for communication
 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
@@ -133,7 +130,7 @@ int main(void)
 		  HAL_UART_Transmit(&huart2, MSG, sizeof(MSG), UART_TIMEOUT);
 	  }
 
-	  uint16_t adc_reading = (((uint16_t)(spi_rx_buf_[1] & 0x03)) << 8) + spi_rx_buf_[2];
+	  adc_reading = ((spi_rx_buf_[1] & 0x03) << 8) + spi_rx_buf_[2];
 	  // adjust counter compare register
 	  TIM1->CCR1 = adc_reading * TIM1->ARR / MAX_ADC_READING * 0.05 + TIM1->ARR * 0.05;
 
